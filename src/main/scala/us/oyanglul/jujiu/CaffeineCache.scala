@@ -38,7 +38,7 @@ trait CaffeineAsyncCache[F[_], K, V] extends Cache[F, CACache, K, V] {
     }
   def fetch(k: K)(implicit M: Async[F]): Kleisli[F, CACache[K, V], Option[V]] =
     Kleisli(caffeine =>
-      M.async { cb =>
+      M.async_ { cb =>
         Option(caffeine.getIfPresent(k)).map(toScala).sequence.onComplete {
           case Success(v) => cb(Right(v))
           case Failure(e) => cb(Left(e))
@@ -55,7 +55,7 @@ trait CaffeineAsyncLoadingCache[F[_], K, V] extends LoadingCache[F, CALCache, K,
   implicit val executionContext: ExecutionContext
   override def fetch(k: K)(implicit M: Async[F]): Kleisli[F, CALCache[K, V], V] =
     Kleisli { caffeine =>
-      M.async { cb =>
+      M.async_ { cb =>
         val future = toScala(caffeine.get(k))
         future.onComplete {
           case Success(v) => cb(Right(v))

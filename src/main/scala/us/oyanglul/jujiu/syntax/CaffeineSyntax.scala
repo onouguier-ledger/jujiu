@@ -12,6 +12,7 @@ import scala.concurrent.duration._
 import cats.effect._
 import cats.syntax.functor._
 import com.github.benmanes.caffeine.cache.Caffeine
+import cats.effect.std.Dispatcher
 
 trait CaffeineSyntax {
   import com.github.benmanes.caffeine.cache
@@ -54,11 +55,15 @@ trait CaffeineSyntax {
       })
     def async[KK <: K, VV <: V]: cache.AsyncCache[KK, VV] =
       caf.buildAsync[KK, VV]()
-    def async[F[_]: Effect, KK <: K, VV <: V](load: KK => F[VV]): cache.AsyncLoadingCache[KK, VV] =
+    def async[F[_]: Dispatcher : Async, KK <: K, VV <: V](load: KK => F[VV]): cache.AsyncLoadingCache[KK, VV] =
       caf.buildAsync(new cache.AsyncCacheLoader[KK, VV] {
         def asyncLoad(key: KK, executor: Executor): CompletableFuture[VV] = {
           val p = Promise[VV]
-          Effect[F]
+          Dispatcher.apply[F]
+          .use{
+            dispatch =>
+              dispatch.unsafeRunSync(Async.async[String]("load(key"))
+          }
             .runAsync(load(key)) {
               case Right(v) => IO(p.success(v)).as(())
               case Left(e)  => IO(p.failure(e)).as(())
